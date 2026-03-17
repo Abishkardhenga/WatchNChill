@@ -1,0 +1,100 @@
+# -----------------------------
+# 📦 Dependencies
+# -----------------------------
+node_modules/
+node_modules
+node_modules
+.pnp
+.pnp.js
+
+# -----------------------------
+# 🔐 Environment Variables
+# -----------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# -----------------------------
+# 🧾 Logs
+# -----------------------------
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------
+# 🚀 Build Outputs
+# -----------------------------
+dist/
+build/
+.next/
+out/
+coverage/
+
+# -----------------------------
+# ⚙️ Cache / Temporary Files
+# -----------------------------
+.cache/
+.parcel-cache/
+.vite/
+.tmp/
+temp/
+
+# -----------------------------
+# 🧠 IDE / Editor Files
+# -----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# -----------------------------
+# 🧪 Testing
+# -----------------------------
+jest-cache/
+coverage/
+
+# -----------------------------
+# 📱 Misc
+# -----------------------------
+*.pem
+*.pid
+*.seed
+
+# -----------------------------
+# 🐳 Docker (optional)
+# -----------------------------
+docker-compose.override.yml
+
+# -----------------------------
+# 🔧 TypeScript
+# -----------------------------
+*.tsbuildinfo
+
+# -----------------------------
+# 🧾 OS Files
+# -----------------------------
+Thumbs.db
+
+# -----------------------------
+# 🔥 Backend Specific
+# -----------------------------
+uploads/
+*.sqlite
+*.db
+
+# -----------------------------
+# 🌐 Frontend Specific
+# -----------------------------
+.vercel/
+.netlify/
+
+# -----------------------------
+# 🧬 Prisma / ORM (if used)
+# -----------------------------
+prisma/dev.db
