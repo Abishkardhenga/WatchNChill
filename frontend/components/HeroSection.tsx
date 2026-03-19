@@ -18,38 +18,73 @@ import {
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { createRoom, joinRoom } from "@/lib/api"
 
 const HeroSection = () => {
   const sectionRef = useRef<HTMLElement | null>(null)
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [createUserName, setCreateUserName] = useState("")
   const [createRoomName, setCreateRoomName] = useState("")
-  const [name, setName] = useState("")
+  const [joinUserName, setJoinUserName] = useState("")
   const [joinRoomId, setJoinRoomId] = useState("")
+  const [isCreateLoading, setIsCreateLoading] = useState(false)
+  const [isJoinLoading, setIsJoinLoading] = useState(false)
+  const [error, setError] = useState("")
   const router = useRouter()
 
-  const getRoomIdFromName = (roomName: string) => {
-    return roomName
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 8)
+  const handleCreateRoom = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError("")
+    setIsCreateLoading(true)
+
+    try {
+      const username = createUserName.trim()
+      const roomname = createRoomName.trim()
+
+      if (!username || !roomname) {
+        setError("Please enter both name and room name")
+        setIsCreateLoading(false)
+        return
+      }
+
+      const response = await createRoom(roomname, username)
+      const query = `?name=${encodeURIComponent(username)}&hostToken=${encodeURIComponent(response.hostToken)}`
+      router.push(`/room/${response.roomId}${query}`)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create room"
+      setError(message)
+      console.error("Create room error:", err)
+    } finally {
+      setIsCreateLoading(false)
+    }
   }
 
-  const handleCreateRoom = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleJoinRoom = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const generatedId = getRoomIdFromName(createRoomName) || "ROOM001"
-    router.push(`/room/${generatedId}`)
-  }
+    setError("")
+    setIsJoinLoading(true)
 
-  const handleJoinRoom = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const sanitizedId = joinRoomId.trim().toUpperCase()
-    if (!sanitizedId) return
-    const trimmedName = name.trim()
-    const query = trimmedName
-      ? `?name=${encodeURIComponent(trimmedName)}`
-      : ""
-    router.push(`/room/${sanitizedId}${query}`)
+    try {
+      const username = joinUserName.trim()
+      const roomId = joinRoomId.trim()
+
+      if (!username || !roomId) {
+        setError("Please enter both name and room ID")
+        setIsJoinLoading(false)
+        return
+      }
+
+      const response = await joinRoom(roomId, username)
+      const query = `?name=${encodeURIComponent(username)}`
+      router.push(`/room/${response.roomId}${query}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to join room"
+      setError(message)
+      console.error("Join room error:", err)
+    } finally {
+      setIsJoinLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -133,34 +168,40 @@ const HeroSection = () => {
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Dialog>
-            <form onSubmit={handleCreateRoom}>
-              <DialogTrigger
-                render={
-                  <Button
-                    type="button"
-                    className="group relative h-auto rounded-2xl bg-linear-to-r from-blue-600 to-blue-500 px-8 py-4 font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-105 hover:shadow-blue-500/50 active:scale-95"
-                  />
-                }
-              >
-                <span>Create a Room</span>
-                <FaArrowRight className="transition-transform group-hover:translate-x-1" />
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-sm">
+            <DialogTrigger
+              render={
+                <Button
+                  type="button"
+                  className="group relative h-auto rounded-2xl bg-linear-to-r from-blue-600 to-blue-500 px-8 py-4 font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-105 hover:shadow-blue-500/50 active:scale-95"
+                />
+              }
+            >
+              <span>Create a Room</span>
+              <FaArrowRight className="transition-transform group-hover:translate-x-1" />
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <form onSubmit={handleCreateRoom}>
                 <DialogHeader>
                   <DialogTitle>Create Room</DialogTitle>
                   <DialogDescription>
                     Enter a room name to generate your room and start watching.
                   </DialogDescription>
                 </DialogHeader>
+                {error && (
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+                    {error}
+                  </div>
+                )}
                 <FieldGroup>
                   <Field>
-                    <Label htmlFor="create-room-name">Your Name</Label>
+                    <Label htmlFor="create-name">Your Name</Label>
                     <Input
                       id="create-name"
                       name="name"
                       placeholder="Your name"
-                      value={createRoomName}
-                      onChange={(e) => setCreateRoomName(e.target.value)}
+                      value={createUserName}
+                      onChange={(e) => setCreateUserName(e.target.value)}
+                      required
                     />
                   </Field>
                   <Field>
@@ -171,6 +212,7 @@ const HeroSection = () => {
                       placeholder="Friends Night"
                       value={createRoomName}
                       onChange={(e) => setCreateRoomName(e.target.value)}
+                      required
                     />
                   </Field>
                 </FieldGroup>
@@ -180,33 +222,40 @@ const HeroSection = () => {
                   >
                     Cancel
                   </DialogClose>
-                  <Button type="submit">Create</Button>
+                  <Button type="submit" disabled={isCreateLoading}>
+                    {isCreateLoading ? "Creating..." : "Create"}
+                  </Button>
                 </DialogFooter>
-              </DialogContent>
-            </form>
+              </form>
+            </DialogContent>
           </Dialog>
 
           <Dialog>
-            <form onSubmit={handleJoinRoom}>
-              <DialogTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    type="button"
-                    className="h-auto rounded-2xl border-white/20 bg-white/5 px-8 py-4 font-semibold text-white backdrop-blur-sm transition-all hover:scale-105 hover:border-white/30 hover:bg-white/10 active:scale-95"
-                  />
-                }
-              >
-                <LuUsers className="h-5 w-5" />
-                <span>Join a Room</span>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-sm">
+            <DialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="h-auto rounded-2xl border-white/20 bg-white/5 px-8 py-4 font-semibold text-white backdrop-blur-sm transition-all hover:scale-105 hover:border-white/30 hover:bg-white/10 active:scale-95"
+                />
+              }
+            >
+              <LuUsers className="h-5 w-5" />
+              <span>Join a Room</span>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <form onSubmit={handleJoinRoom}>
                 <DialogHeader>
                   <DialogTitle>Join Room</DialogTitle>
                   <DialogDescription>
                     Paste your room ID and join your friends instantly.
                   </DialogDescription>
                 </DialogHeader>
+                {error && (
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+                    {error}
+                  </div>
+                )}
                 <FieldGroup>
                   <Field>
                     <Label htmlFor="join-name">Your Name</Label>
@@ -214,8 +263,9 @@ const HeroSection = () => {
                       id="join-name"
                       name="name"
                       placeholder="Your name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      value={joinUserName}
+                      onChange={(e) => setJoinUserName(e.target.value)}
+                      required
                     />
                   </Field>
                   <Field>
@@ -226,6 +276,7 @@ const HeroSection = () => {
                       placeholder="ZPE3EG"
                       value={joinRoomId}
                       onChange={(e) => setJoinRoomId(e.target.value)}
+                      required
                     />
                   </Field>
                 </FieldGroup>
@@ -235,10 +286,12 @@ const HeroSection = () => {
                   >
                     Cancel
                   </DialogClose>
-                  <Button type="submit">Join</Button>
+                  <Button type="submit" disabled={isJoinLoading}>
+                    {isJoinLoading ? "Joining..." : "Join"}
+                  </Button>
                 </DialogFooter>
-              </DialogContent>
-            </form>
+              </form>
+            </DialogContent>
           </Dialog>
         </div>
 
