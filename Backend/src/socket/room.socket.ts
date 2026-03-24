@@ -22,7 +22,7 @@ type PlaybackState = {
 type ChatMessage = {
   id: string;
   name: string;
-  message: string;
+  text: string;
   createdAt: number;
 };
 
@@ -213,7 +213,7 @@ socket.on("chat:send", (payload: { roomId: string; text: string; name: string })
     const message: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random()}`,
       name,
-      message: text,
+      text,
       createdAt: Date.now(),
     };
     roomState.messages.push(message);
