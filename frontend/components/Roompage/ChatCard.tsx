@@ -7,16 +7,22 @@ import type { ChatMessage } from "@/types/room"
 type ChatCardProps = {
   messages: ChatMessage[]
   onSendMessage: (text: string) => void
+  onTypingChange: (isTyping: boolean) => void
   currentUserName: string
+  typingUsers: string[]
 }
 
 export default function ChatCard({
   messages,
   onSendMessage,
+  onTypingChange,
   currentUserName,
+  typingUsers,
 }: ChatCardProps) {
   const [message, setMessage] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isTypingRef = useRef(false)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -29,8 +35,60 @@ export default function ChatCard({
   const handleSend = () => {
     if (!message.trim()) return
     onSendMessage(message)
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+      typingTimeoutRef.current = null
+    }
+    if (isTypingRef.current) {
+      onTypingChange(false)
+      isTypingRef.current = false
+    }
     setMessage("")
   }
+
+  const handleTyping = (value: string) => {
+    setMessage(value)
+
+    const hasText = value.trim().length > 0
+
+    if (!hasText) {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
+      }
+      if (isTypingRef.current) {
+        onTypingChange(false)
+        isTypingRef.current = false
+      }
+      return
+    }
+
+    if (!isTypingRef.current) {
+      onTypingChange(true)
+      isTypingRef.current = true
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      onTypingChange(false)
+      isTypingRef.current = false
+      typingTimeoutRef.current = null
+    }, 1200)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+      if (isTypingRef.current) {
+        onTypingChange(false)
+      }
+    }
+  }, [onTypingChange])
 
   return (
     <section className="flex min-h-105 flex-col rounded-[28px] border border-white/10 bg-[#0c0c0c] p-5">
@@ -83,13 +141,21 @@ export default function ChatCard({
         )}
       </div>
 
+      {typingUsers.length > 0 && (
+        <div className="mt-2 min-h-5 px-1 text-xs text-white/60">
+          {typingUsers.length === 1
+            ? `${typingUsers[0]} is typing...`
+            : `${typingUsers.slice(0, 2).join(", ")} ${typingUsers.length > 2 ? "and others" : "are"} typing...`}
+        </div>
+      )}
+
       {/* Input */}
       <div className="mt-4 flex items-center gap-2 rounded-2xl border border-white/10 bg-[#121212] px-3 py-2">
         <input
           type="text"
           placeholder="Type a message..."
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => handleTyping(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSend()
           }}

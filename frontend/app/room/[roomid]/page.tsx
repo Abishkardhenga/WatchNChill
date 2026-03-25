@@ -3,17 +3,11 @@
 import ChatCard from "@/components/Roompage/ChatCard"
 import ParticipantsCard from "@/components/Roompage/ParticipantCard"
 import RoomHeader from "@/components/Roompage/RoomHeader"
-import VideoSection from "@/components/Roompage/VideoSection"
 import type { Participant } from "@/components/Roompage/participant.types"
 import { useEffect, useMemo, useState, useRef } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { io, Socket } from "socket.io-client"
-import type {
-  PlaybackState,
-  ChatMessage,
-  RoomState as RoomStateType,
-} from "@/types/room"
-import { extractVideoId } from "@/lib/youtube"
+import type { ChatMessage, RoomState as RoomStateType } from "@/types/room"
 
 export default function RoomPage() {
   const params = useParams<{ roomid: string }>()
@@ -29,18 +23,11 @@ export default function RoomPage() {
 
   const socketRef = useRef<Socket | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
-  const [playback, setPlayback] = useState<PlaybackState>({
-    videoId: null,
-    currentTime: 0,
-    isPlaying: false,
-  })
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [connectionStatus, setConnectionStatus] = useState<
     "connecting" | "connected" | "disconnected" | "error"
   >("connecting")
-  const [currentUserRole, setCurrentUserRole] = useState<
-    "host" | "guest" | null
-  >(null)
 
   useEffect(() => {
     if (!roomId) return
@@ -65,6 +52,7 @@ export default function RoomPage() {
 
     socket.on("room:state", (payload) => {
       setMessages(payload?.messages || [])
+      setTypingUsers([])
 
       const socketParticipants = Array.isArray(payload?.participants)
         ? payload.participants
@@ -86,16 +74,6 @@ export default function RoomPage() {
 
       setParticipants(mappedParticipants)
 
-      const userRole = socketParticipants.find(
-        (p: { name: string }) => p.name === userName,
-      )?.role
-      if (userRole) {
-        setCurrentUserRole(userRole)
-      }
-
-      if (payload?.playback) {
-        setPlayback(payload.playback)
-      }
     })
 
     socket.on("room:user-joined", (payload: { name: string }) => {
@@ -105,42 +83,24 @@ export default function RoomPage() {
     socket.on("room:user-left", (payload: { name: string }) => {
       console.log(`${payload.name} left the room`)
       setParticipants((prev) => prev.filter((p) => p.name !== payload.name))
+      setTypingUsers((prev) => prev.filter((name) => name !== payload.name))
     })
-
-    socket.on(
-      "video:changed",
-      (payload: {
-        videoId: string
-        currentTime: number
-        isPlaying: boolean
-      }) => {
-        setPlayback({
-          videoId: payload.videoId,
-          currentTime: payload.currentTime,
-          isPlaying: payload.isPlaying,
-        })
-      },
-    )
-
-    socket.on(
-      "playback:changed",
-      (payload: { action: string; currentTime: number }) => {
-        setPlayback((prev) => ({
-          ...prev,
-          currentTime: payload.currentTime,
-          isPlaying: payload.action === "play",
-        }))
-      },
-    )
 
     socket.on("chat:new-message", (payload: ChatMessage) => {
       setMessages((prev) => [...prev, payload])
     })
 
     socket.on("chat:typing", (payload: { name: string; isTyping: boolean }) => {
-      console.log(
-        `${payload.name} is ${payload.isTyping ? "typing" : "not typing"}`,
-      )
+      if (payload.name === userName) return
+
+      setTypingUsers((prev) => {
+        if (payload.isTyping) {
+          if (prev.includes(payload.name)) return prev
+          return [...prev, payload.name]
+        }
+
+        return prev.filter((name) => name !== payload.name)
+      })
     })
 
     socket.on("room:closed", () => {
@@ -155,6 +115,7 @@ export default function RoomPage() {
 
     socket.on("disconnect", () => {
       setConnectionStatus("disconnected")
+      setTypingUsers([])
     })
 
     return () => {
@@ -163,54 +124,25 @@ export default function RoomPage() {
     }
   }, [hostToken, roomId, userName])
 
-  const handleVideoUrlChange = (url: string) => {
-    if (currentUserRole !== "host") {
-      alert("Only host can change video")
-      return
-    }
-
-    const videoId = extractVideoId(url)
-    if (!videoId) {
-      alert("Invalid YouTube URL or video ID")
-      return
-    }
-
-    socketRef.current?.emit("video:change", {
-      roomId,
-      videoId,
-    })
-  }
-
-  const handlePlayPause = (isPlaying: boolean, currentTime: number) => {
-    if (currentUserRole !== "host") return
-
-    if (isPlaying) {
-      socketRef.current?.emit("playback:play", {
-        roomId,
-        currentTime,
-      })
-    } else {
-      socketRef.current?.emit("playback:pause", {
-        roomId,
-        currentTime,
-      })
-    }
-  }
-
-  const handleSeek = (currentTime: number) => {
-    if (currentUserRole !== "host") return
-
-    socketRef.current?.emit("playback:seek", {
-      roomId,
-      currentTime,
-    })
-  }
-
   const handleSendMessage = (text: string) => {
     socketRef.current?.emit("chat:send", {
       roomId,
       text,
       name: userName,
+    })
+
+    socketRef.current?.emit("chat:typing", {
+      roomId,
+      name: userName,
+      isTyping: false,
+    })
+  }
+
+  const handleTypingChange = (isTyping: boolean) => {
+    socketRef.current?.emit("chat:typing", {
+      roomId,
+      name: userName,
+      isTyping,
     })
   }
 
@@ -219,22 +151,15 @@ export default function RoomPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <RoomHeader roomId={roomId} />
 
-        <div className="grid gap-6 lg:grid-cols-[1.9fr_0.95fr]">
-          <VideoSection
-            videoId={playback.videoId}
-            isPlaying={playback.isPlaying}
-            currentTime={playback.currentTime}
-            isHost={currentUserRole === "host"}
-            onVideoUrlChange={handleVideoUrlChange}
-            onPlayPause={handlePlayPause}
-            onSeek={handleSeek}
-          />
+        <div className="grid gap-6">
           <aside className="flex flex-col gap-6">
             <ParticipantsCard participants={participants} />
             <ChatCard
               messages={messages}
               onSendMessage={handleSendMessage}
+              onTypingChange={handleTypingChange}
               currentUserName={userName}
+              typingUsers={typingUsers}
             />
           </aside>
         </div>

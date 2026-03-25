@@ -97,3 +97,6 @@ uploads/
 # 🧬 Prisma / ORM (if used)
 # -----------------------------
 prisma/dev.db
+
+
+dumb.rdb
